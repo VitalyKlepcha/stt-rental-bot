@@ -39,6 +39,17 @@ router = Router()
 # --- User-facing messages (Russian) -------------------------------------------
 
 _ACK_TEXT = "Обрабатываю ваше сообщение…"
+_PROGRESS_INTERVAL_SEC = 5
+_PROGRESS_MESSAGES = [
+    "Скачиваю голосовое сообщение…",
+    "Распознаю речь…",
+    "Обрабатываю текст…",
+    "Извлекаю данные из сообщения…",
+    "Анализирую заявку…",
+    "Создаю PDF документ…",
+    "Формирую заявку на аренду…",
+    "Почти готово, ещё немного…",
+]
 _EMPTY_TRANSCRIPT_TEXT = "Не удалось распознать речь в сообщении."
 _EMPTY_DATA_TEXT = "Не удалось извлечь данные из сообщения."
 _VOICE_DOWNLOAD_ERROR_TEXT = "Не удалось получить голосовое сообщение. Попробуйте ещё раз."
@@ -66,6 +77,21 @@ _HELP_TEXT = (
 
 _PDF_FILENAME = "zayavka_na_arendu.pdf"
 _PDF_CAPTION = "Ваша заявка на аренду готова"
+
+
+async def _update_progress(status_msg: Message, interval: int) -> None:
+    """Edit the status message with rotating progress text every *interval* seconds.
+
+    Runs as a background task alongside the main processing pipeline.
+    Cycles through ``_PROGRESS_MESSAGES`` so the user sees the bot is alive.
+    Silently stops when cancelled or when all messages have been shown.
+    """
+    for text in _PROGRESS_MESSAGES:
+        await asyncio.sleep(interval)
+        try:
+            await status_msg.edit_text(text)
+        except TelegramAPIError:
+            break
 
 
 # --- Handlers ------------------------------------------------------------------
@@ -120,7 +146,11 @@ async def handle_voice_message(
         duration_sec=voice.duration,
     )
 
-    await message.answer(_ACK_TEXT)
+    status_msg = await message.answer(_ACK_TEXT)
+
+    progress_task = asyncio.create_task(
+        _update_progress(status_msg, _PROGRESS_INTERVAL_SEC),
+    )
 
     # --- Step 1: Download voice file ------------------------------------------
     try:
@@ -136,6 +166,7 @@ async def handle_voice_message(
             error_type=type(exc).__name__,
         )
         await message.answer(_VOICE_DOWNLOAD_ERROR_TEXT)
+        progress_task.cancel()
         return
     except Exception as exc:
         logger.error(
@@ -145,6 +176,7 @@ async def handle_voice_message(
             error_type=type(exc).__name__,
         )
         await message.answer(_VOICE_DOWNLOAD_ERROR_TEXT)
+        progress_task.cancel()
         return
 
     logger.debug(
@@ -165,6 +197,7 @@ async def handle_voice_message(
             error_type=type(exc).__name__,
         )
         await message.answer(_TRANSCRIPTION_ERROR_TEXT)
+        progress_task.cancel()
         return
     except Exception as exc:
         logger.error(
@@ -174,11 +207,13 @@ async def handle_voice_message(
             error_type=type(exc).__name__,
         )
         await message.answer(_TRANSCRIPTION_ERROR_TEXT)
+        progress_task.cancel()
         return
 
     if not transcript or not transcript.strip():
         logger.warning("empty_transcript", user_id=user_id)
         await message.answer(_EMPTY_TRANSCRIPT_TEXT)
+        progress_task.cancel()
         return
 
     logger.debug(
@@ -199,6 +234,7 @@ async def handle_voice_message(
             error_type=type(exc).__name__,
         )
         await message.answer(_EXTRACTION_ERROR_TEXT)
+        progress_task.cancel()
         return
     except Exception as exc:
         logger.error(
@@ -208,11 +244,13 @@ async def handle_voice_message(
             error_type=type(exc).__name__,
         )
         await message.answer(_EXTRACTION_ERROR_TEXT)
+        progress_task.cancel()
         return
 
     if rental_data.is_empty():
         logger.warning("empty_extraction_result", user_id=user_id)
         await message.answer(_EMPTY_DATA_TEXT)
+        progress_task.cancel()
         return
 
     logger.debug(
@@ -235,6 +273,7 @@ async def handle_voice_message(
             error_type=type(exc).__name__,
         )
         await message.answer(_PDF_ERROR_TEXT)
+        progress_task.cancel()
         return
     except Exception as exc:
         logger.error(
@@ -244,6 +283,7 @@ async def handle_voice_message(
             error_type=type(exc).__name__,
         )
         await message.answer(_PDF_ERROR_TEXT)
+        progress_task.cancel()
         return
 
     logger.debug(
@@ -253,8 +293,11 @@ async def handle_voice_message(
         elapsed_sec=round(time.monotonic() - start_time, 2),
     )
 
+    progress_task.cancel()
+
     # --- Step 5: Send PDF to user ---------------------------------------------
     try:
+        await status_msg.delete()
         await message.answer_document(
             BufferedInputFile(pdf_bytes, filename=_PDF_FILENAME),
             caption=_PDF_CAPTION,
