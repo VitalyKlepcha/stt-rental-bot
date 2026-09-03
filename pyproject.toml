@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "voice-bot"
+version = "0.1.0"
+description = "Telegram bot for transcribing voice messages and generating PDF rental request forms"
+requires-python = ">=3.12"
+dependencies = [
+    "aiogram>=3.13,<4.0",
+    "openai>=1.50,<2.0",
+    "weasyprint>=62.0",
+    "jinja2>=3.1",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "aiohttp>=3.9",
+    "structlog>=24.0",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=5.0",
+    "respx>=0.21",
+]
+
+[project.scripts]
+voice-bot = "voice_bot.__main__:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["voice_bot"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "ANN"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
