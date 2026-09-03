@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Заявка на аренду строительной техники</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <header class="document-header">
+        ЗАЯВКА НА АРЕНДУ СТРОИТЕЛЬНОЙ ТЕХНИКИ
+    </header>
+
+    <div class="date-line">
+        Дата заявки: {{ generated_at.strftime('%d.%m.%Y') }}
+    </div>
+
+    <section class="form-section">
+        <h2 class="section-title">1. Клиент</h2>
+        <div class="field-row">
+            <span class="field-label">Наименование клиента:</span>
+            <span class="field-value">{{ data.client_name or "—" }}</span>
+        </div>
+        <div class="field-row">
+            <span class="field-label">Контактный телефон:</span>
+            <span class="field-value">{{ data.contact_phone or "—" }}</span>
+        </div>
+    </section>
+
+    <section class="form-section">
+        <h2 class="section-title">2. Оборудование</h2>
+        {% if data.equipment %}
+        <table class="equipment-table">
+            <thead>
+                <tr>
+                    <th class="col-number">№</th>
+                    <th class="col-name">Наименование</th>
+                    <th class="col-quantity">Количество</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in data.equipment %}
+                <tr>
+                    <td class="col-number">{{ loop.index }}</td>
+                    <td class="col-name">{{ item.name }}</td>
+                    <td class="col-quantity">{{ item.quantity }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="field-row">
+            <span class="field-value">—</span>
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="form-section">
+        <h2 class="section-title">3. Условия аренды</h2>
+        <div class="field-row">
+            <span class="field-label">Дата начала:</span>
+            <span class="field-value">{{ data.rental_start_date or "—" }}</span>
+        </div>
+        <div class="field-row">
+            <span class="field-label">Дата окончания:</span>
+            <span class="field-value">{{ data.rental_end_date or "—" }}</span>
+        </div>
+        <div class="field-row">
+            <span class="field-label">Срок аренды (дней):</span>
+            <span class="field-value">{{ data.rental_duration_days or "—" }}</span>
+        </div>
+    </section>
+
+    <section class="form-section">
+        <h2 class="section-title">4. Доставка</h2>
+        <div class="field-row">
+            <span class="field-label">Адрес доставки:</span>
+            <span class="field-value">{{ data.delivery_address or "—" }}</span>
+        </div>
+        <div class="field-row">
+            <span class="field-label">Предпочтительное время:</span>
+            <span class="field-value">{{ data.preferred_delivery_time or "—" }}</span>
+        </div>
+    </section>
+
+    <section class="form-section">
+        <h2 class="section-title">5. Дополнительно</h2>
+        <div class="field-row">
+            <span class="field-label">Особые требования:</span>
+            <span class="field-value">{{ data.special_requirements or "—" }}</span>
+        </div>
+        <div class="field-row">
+            <span class="field-label">Срочность:</span>
+            <span class="field-value {% if data.urgency == 'urgent' %}urgency-urgent{% endif %}">
+                {{ "Срочно" if data.urgency == "urgent" else "Обычная" }}
+            </span>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="signature-line">
+            Подпись клиента: ___________________________
+        </div>
+    </footer>
+
+</body>
+</html>
