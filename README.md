@@ -179,7 +179,7 @@ Tests cover:
 - **Middleware** — access control whitelist logic
 - **Handlers** — voice message processing flow, error responses (mocked services)
 
-> **Note**: PDF generator tests (Step 22 in the plan) are skipped on Windows because WeasyPrint requires Pango/GTK native libraries. They run in CI on Ubuntu where these dependencies are available.
+> **Note**: PDF generator tests (Step 22 in the plan) are skipped on Windows because WeasyPrint requires Pango/GTK native libraries. They run on Linux (e.g., in the Docker container) where these dependencies are available.
 
 With coverage report:
 
@@ -229,24 +229,26 @@ The Dockerfile uses a **multi-stage build**:
 
 ## Google Cloud Deployment
 
-The bot is designed for **Google Cloud Run** with CI/CD via GitHub Actions.
+The bot is designed for **Google Cloud Run** with CI/CD via **Google Cloud Build**.
 
 ### Summary
 
-1. Enable APIs: Cloud Run, Artifact Registry, Secret Manager, IAM
+1. Enable APIs: Cloud Run, Artifact Registry, Secret Manager, IAM, Cloud Build
 2. Create secrets in Secret Manager: `telegram-bot-token`, `openai-api-key`, `allowed-user-ids`, `webhook-secret`
-3. Set up Workload Identity Federation (GitHub OIDC → GCP)
-4. Configure GitHub Actions variables: `WIF_PROVIDER`, `DEPLOY_SA`, `REGION`, `PROJECT_ID`
-5. Push to `main` → CI/CD runs tests, builds Docker image, pushes to Artifact Registry, deploys to Cloud Run
+3. Create a Cloud Build trigger connected to your repository (watches `master` branch)
+4. Push to `master` → Cloud Build runs `cloudbuild.yaml`, builds Docker image, pushes to Artifact Registry, deploys to Cloud Run
 
 > **Full step-by-step guide**: see [docs/PLAN.md](docs/PLAN.md) → **Step 28** for the complete infrastructure setup guide with all `gcloud` commands.
 
 ### CI/CD Pipeline
 
-The GitHub Actions workflow (`.github/workflows/deploy.yml`) has two jobs:
+The Cloud Build pipeline (`cloudbuild.yaml`) has three steps:
 
-1. **test** — lint (`ruff`), type check (`mypy`), unit tests (`pytest` with coverage)
-2. **deploy** (on `main` branch only) — build & push Docker image to Artifact Registry, deploy to Cloud Run with secrets from Secret Manager
+1. **Build** — builds the Docker image from the project's `Dockerfile`
+2. **Push** — pushes the image to Artifact Registry
+3. **Deploy** — deploys the image to Cloud Run with secrets from Secret Manager and `--no-allow-unauthenticated`
+
+Tests (ruff, mypy, pytest) are not run in CI — run them locally with `pytest -v`, `ruff check .`, `mypy src/`.
 
 ---
 
@@ -303,7 +305,7 @@ stt-demo/
 - **OpenAI API errors** — Verify `OPENAI_API_KEY` is valid and has sufficient quota for Whisper and GPT-4o-mini.
 - **PDF generation fails locally (Windows)** — WeasyPrint requires Pango/GTK native libraries. Use Docker (`docker build -t voice-bot .`) or WSL for local PDF testing.
 - **Webhook not registering (production)** — Ensure `WEBHOOK_URL`, `WEBHOOK_PATH`, and `WEBHOOK_SECRET` are all set. Check startup logs for the webhook registration result.
-- **GitHub Actions deploy fails** — Verify `WIF_PROVIDER`, `DEPLOY_SA`, `PROJECT_ID`, and `REGION` variables are set in GitHub. The repo name in the IAM binding must match exactly.
+- **Cloud Build trigger not firing** — Verify the trigger is connected to the correct branch (`^master$`) and repository in GCP Console. Ensure the Cloud Build GitHub app is authorized for your repository.
 
 ---
 

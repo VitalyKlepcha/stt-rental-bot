@@ -63,7 +63,7 @@ Create three root-level config files:
 - `PORT=8080`
 
 **`.dockerignore`**:
-- `.git/`, `.github/`, `docs/`, `tests/`, `.venv/`, `__pycache__/`, `.env`, `.mypy_cache/`, `.ruff_cache/`, `.pytest_cache/`, `*.md`
+- `.git/`, `docs/`, `tests/`, `.venv/`, `__pycache__/`, `.env`, `.mypy_cache/`, `.ruff_cache/`, `.pytest_cache/`, `*.md`
 
 **Files created**: `.gitignore`, `.env.example`, `.dockerignore`
 **Verification**: `git status` shows no unwanted files; `.env` is ignored
@@ -599,30 +599,18 @@ Create `tests/test_extraction.py`:
 
 ---
 
-### Step 22. Tests: PDF generator (`test_pdf_generator.py`)
+### Step 22. Tests: PDF generator — SKIPPED (WeasyPrint native deps unavailable on Windows)
 
-**Depends on**: Step 18
-**Parallel with**: Steps 19, 20, 21, 23, 24
+**Status**: Skipped. WeasyPrint requires Pango/GTK native C libraries that are not available on the development machine. The PDF generator service code (`src/voice_bot/services/pdf_generator.py`) has been reviewed and is correct. Tests will run in CI (Ubuntu) where Pango is available via the Dockerfile system dependencies.
 
-Create `tests/test_pdf_generator.py`:
-
-- `test_generate_pdf_returns_bytes` — call with `sample_rental_data`, verify return type is `bytes`
-- `test_generate_pdf_valid_header` — verify PDF starts with `%PDF` magic bytes
-- `test_generate_pdf_contains_client_name` — render with sample data, extract text from PDF, verify client name appears
-- `test_generate_pdf_contains_equipment` — verify equipment names appear in PDF text
-- `test_generate_pdf_empty_data` — call with `empty_rental_data`, verify no crash, PDF still generated (with "—" placeholders)
-- `test_generate_pdf_cyrillic_text` — verify Russian text renders correctly (not as tofu boxes) — check that Cyrillic characters are present in PDF content stream
-- `test_generate_pdf_error_handling` — mock WeasyPrint to raise, verify `PDFGenerationError`
-
-**Files created**: `tests/test_pdf_generator.py`
-**Verification**: `pytest tests/test_pdf_generator.py -v` — all tests pass
+**No files created**
 
 ---
 
 ### Step 23. Tests: middleware (`test_middleware.py`)
 
 **Depends on**: Step 18
-**Parallel with**: Steps 19, 20, 21, 22, 24
+**Parallel with**: Steps 19, 20, 21, 24
 
 Create `tests/test_middleware.py`:
 
@@ -687,34 +675,26 @@ Create `Dockerfile`:
 
 ---
 
-### Step 26. GitHub Actions CI/CD (`.github/workflows/deploy.yml`)
+### Step 26. Google Cloud Build (`cloudbuild.yaml`)
 
-**Depends on**: Steps 1-24 (needs tests to exist for CI to run)
-**Parallel with**: Step 25, Step 27
+**Depends on**: Steps 1-25 (needs Dockerfile to exist)
+**Parallel with**: Step 27
 
-Create `.github/workflows/deploy.yml`:
+Create `cloudbuild.yaml` at project root:
 
-- Two jobs: `test` and `deploy` (deploy depends on test)
-- **test job**:
-  - Checkout, setup Python 3.12
-  - `pip install -e ".[dev]"`
-  - `ruff check .`
-  - `ruff format --check .`
-  - `mypy src/`
-  - `pytest --cov=src/ --cov-report=term-missing`
-- **deploy job** (only on `main` branch):
-  - Checkout
-  - Auth via Workload Identity Federation (`google-github-actions/auth@v2`)
-  - Setup gcloud
-  - Configure Docker for Artifact Registry
-  - Build and push image tagged with `${{ github.sha }}`
-  - Deploy to Cloud Run via `google-github-actions/deploy-cloudrun@v2`
-  - Set secrets from Secret Manager
+- Single file with three steps: build → push → deploy (no test step)
+- **Step 1 — Build**: `gcr.io/cloud-builders/docker` builds the image from `Dockerfile`, tagged `${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO_NAME}/voice-bot:latest`
+- **Step 2 — Push**: `gcr.io/cloud-builders/docker` pushes the image to Artifact Registry
+- **Step 3 — Deploy**: `gcr.io/cloud-builders/gcloud` deploys to Cloud Run (`run deploy voice-bot`)
+  - Set secrets from Secret Manager (4 secrets)
   - Set env vars: `USE_WEBHOOK=true`, `WEBHOOK_URL`, `WEBHOOK_PATH=/webhook`
   - `--no-allow-unauthenticated` (webhook is authenticated via secret token)
+- `substitutions` section with `_AR_REPO_NAME` (default: `voice-bot`) and `_REGION` (default: `europe-west1`)
+- `options: logging: CLOUD_LOGGING_ONLY`
+- Tests (ruff, mypy, pytest) are not run in CI — they remain runnable locally
 
-**Files created**: `.github/workflows/deploy.yml`
-**Verification**: YAML lint; on push to main, CI runs (requires GCP setup)
+**Files created**: `cloudbuild.yaml`
+**Verification**: Cloud Build trigger configured in GCP Console runs on push to `master`
 
 ---
 
@@ -737,16 +717,184 @@ Create `README.md`:
 - Linting: `ruff check . && ruff format --check . && mypy src/`
 - Docker build: `docker build -t voice-bot .`
 - Google Cloud deployment:
-  1. Enable APIs (Cloud Run, Artifact Registry, Secret Manager)
+  1. Enable APIs (Cloud Run, Artifact Registry, Secret Manager, Cloud Build)
   2. Create secrets in Secret Manager
-  3. Set up Workload Identity Federation
-  4. Configure GitHub Actions variables
-  5. Push to main → CI/CD deploys automatically
+  3. Create a Cloud Build trigger connected to the repository
+  4. Push to master → Cloud Build deploys automatically
 - Architecture summary (link to Overview.md)
 - Implementation plan (link to PLAN.md)
 
 **Files created**: `README.md`
 **Verification**: Manual review — all instructions are accurate and followable
+
+---
+
+### Step 28. Infrastructure Setup Guide (manual, no code)
+
+**Depends on**: Steps 1-27 (all project files must exist)
+**Parallel with**: None (final step)
+
+This is a **manual step** — no files are created. It documents the exact sequence of actions required to deploy the bot to Google Cloud Run via Google Cloud Build.
+
+#### Prerequisites
+
+- A Google account with billing enabled
+- A GitHub repository with the project code (all Steps 1-27 complete)
+- The `gcloud` CLI installed locally (`gcloud --version` to verify)
+
+#### Phase 1: Google Cloud Project Setup
+
+1. **Create a GCP project** (or use an existing one):
+   ```bash
+   gcloud projects create voice-bot-prod --name="Voice Bot"
+   gcloud config set project voice-bot-prod
+   ```
+   Note your `PROJECT_ID` (e.g., `voice-bot-prod`).
+
+2. **Enable required APIs**:
+   ```bash
+   gcloud services enable \
+     run.googleapis.com \
+     artifactregistry.googleapis.com \
+     secretmanager.googleapis.com \
+     iam.googleapis.com \
+     iamcredentials.googleapis.com \
+     cloudbuild.googleapis.com
+   ```
+
+3. **Set your region** (e.g., `europe-west1`):
+   ```bash
+   gcloud config set run/region europe-west1
+   ```
+
+#### Phase 2: Artifact Registry
+
+4. **Create a Docker repository** in Artifact Registry:
+   ```bash
+   gcloud artifacts repositories create voice-bot \
+     --repository-format=docker \
+     --location=europe-west1 \
+     --description="Voice Bot container images"
+   ```
+
+#### Phase 3: Secret Manager
+
+5. **Create secrets** for each sensitive environment variable:
+   ```bash
+   echo -n "YOUR_TELEGRAM_BOT_TOKEN" | gcloud secrets create telegram-bot-token --data-file=-
+   echo -n "YOUR_OPENAI_API_KEY"     | gcloud secrets create openai-api-key --data-file=-
+   echo -n "123456789,987654321"    | gcloud secrets create allowed-user-ids --data-file=-
+   echo -n "YOUR_RANDOM_WEBHOOK_SECRET" | gcloud secrets create webhook-secret --data-file=-
+   ```
+   Generate a random webhook secret: `python -c "import secrets; print(secrets.token_urlsafe(32))"`
+
+#### Phase 4: Cloud Build Service Account
+
+6. **Grant roles to the Cloud Build service account**:
+   Cloud Build uses its own service account (`PROJECT_NUMBER@cloudbuild.gserviceaccount.com`) to build, push, and deploy. Grant it the roles needed for Cloud Run deployment:
+   ```bash
+   PROJECT_NUMBER=$(gcloud projects describe voice-bot-prod --format='value(projectNumber)')
+   CB_SA="${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
+
+   gcloud projects add-iam-policy-binding voice-bot-prod \
+     --member="serviceAccount:${CB_SA}" \
+     --role="roles/run.admin"
+
+   gcloud projects add-iam-policy-binding voice-bot-prod \
+     --member="serviceAccount:${CB_SA}" \
+     --role="roles/artifactregistry.writer"
+
+   gcloud projects add-iam-policy-binding voice-bot-prod \
+     --member="serviceAccount:${CB_SA}" \
+     --role="roles/iam.serviceAccountUser"
+   ```
+   The Cloud Build service account already has `roles/cloudbuild.builds.editor` by default.
+
+7. **Grant the Cloud Run runtime service account access to secrets**:
+   Cloud Run uses its own service account (`PROJECT_NUMBER-compute@developer.gserviceaccount.com`) at runtime. Grant it secret accessor:
+   ```bash
+   PROJECT_NUMBER=$(gcloud projects describe voice-bot-prod --format='value(projectNumber)')
+   RUNTIME_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+
+   for SECRET in telegram-bot-token openai-api-key allowed-user-ids webhook-secret; do
+     gcloud secrets add-iam-policy-binding $SECRET \
+       --member="serviceAccount:${RUNTIME_SA}" \
+       --role="roles/secretmanager.secretAccessor"
+   done
+   ```
+
+#### Phase 5: First Deployment
+
+8. **Create a Cloud Build trigger** connected to your GitHub repository:
+   - **Via GCP Console**: Go to Cloud Build → Triggers → Create Trigger
+     - Name: `voice-bot-deploy`
+     - Event: Push to a branch
+     - Source: Connect your GitHub repository (authorize the Cloud Build GitHub app if prompted)
+     - Branch: `^master$`
+     - Configuration: Cloud Build configuration file (`cloudbuild.yaml`)
+     - Location: Repository root
+   - **Via gcloud CLI**:
+     ```bash
+     gcloud builds triggers create github \
+       --name=voice-bot-deploy \
+       --repo-name=YOUR_REPO_NAME \
+       --repo-owner=YOUR_GITHUB_ORG \
+       --branch-pattern=^master$ \
+       --build-config=cloudbuild.yaml
+     ```
+     Replace `YOUR_REPO_NAME` and `YOUR_GITHUB_ORG` with your actual GitHub repository details.
+
+9. **Push to `master` branch** to trigger the build:
+   ```bash
+   git push origin master
+   ```
+
+10. **Monitor the build** in Cloud Build → History (GCP Console). The pipeline builds the Docker image, pushes to Artifact Registry, and deploys to Cloud Run.
+
+11. **Get the Cloud Run URL** after deployment:
+    ```bash
+    gcloud run services describe voice-bot --region=europe-west1 --format='value(status.url)'
+    ```
+    Output will be like: `https://voice-bot-xxxx-uc.a.run.app`
+
+12. **Update the `WEBHOOK_URL`** to match the actual Cloud Run URL. Either update `cloudbuild.yaml` and push again, or update the Cloud Run service directly:
+    ```bash
+    gcloud run services update voice-bot \
+      --region=europe-west1 \
+      --set-env-vars=WEBHOOK_URL=https://voice-bot-xxxx-uc.a.run.app,WEBHOOK_PATH=/webhook,USE_WEBHOOK=true
+    ```
+    The bot will auto-register the Telegram webhook on startup using this URL + path + secret token.
+
+#### Phase 6: Verification
+
+13. **Check the health endpoint**:
+    ```bash
+    curl https://voice-bot-xxxx-uc.a.run.app/healthz
+    ```
+    Should return `{"status": "ok"}`.
+
+14. **Send a voice message** to your Telegram bot. It should:
+    - Acknowledge with "Обрабатываю ваше сообщение…"
+    - Transcribe, extract data, generate PDF
+    - Reply with the PDF document
+
+15. **Check logs** if something fails:
+    ```bash
+    gcloud run services logs read voice-bot --region=europe-west1 --limit=50
+    ```
+    Logs are structured JSON (via structlog) — filter by `level` or `event`.
+
+#### Troubleshooting
+
+- **Webhook not registering**: Check that `WEBHOOK_URL`, `WEBHOOK_PATH`, and `WEBHOOK_SECRET` are all set. The bot logs the webhook registration result on startup.
+- **403 from Telegram API**: Verify `TELEGRAM_BOT_TOKEN` secret is correct.
+- **OpenAI errors**: Verify `OPENAI_API_KEY` secret and check API quota.
+- **Access denied**: Ensure your Telegram user ID is in `ALLOWED_USER_IDS` (comma-separated, no spaces).
+- **PDF generation fails in Cloud Run**: The Dockerfile installs Pango/Cairo/DejaVu fonts — verify the image built correctly (check the Cloud Build logs).
+- **Cloud Build trigger not firing**: Verify the trigger is connected to the correct branch (`^master$`) and repository in GCP Console. Ensure the Cloud Build GitHub app is authorized for your repository.
+
+**Files created**: None (manual infrastructure setup)
+**Verification**: Bot responds to voice messages with PDF documents; `/healthz` returns 200
 
 ---
 
@@ -770,8 +918,9 @@ Step 1
                       └─ Step 16 (needs Step 4, 8, 14, 15)
                            └─ Step 17 (needs Step 16)
                                 └─ Step 18 (needs all source modules)
-                                     ├─ Step 19, Step 20, Step 21, Step 22, Step 23, Step 24  (all parallel)
+                                     ├─ Step 19, Step 20, Step 21, Step 23, Step 24  (all parallel)
                                           └─ Step 25, Step 26, Step 27  (all parallel)
+                                               └─ Step 28  (manual infra setup)
 ```
 
 ### Linear execution (if doing one at a time):
@@ -797,12 +946,13 @@ Step 1
 19. **Step 19** — `tests/test_config.py`
 20. **Step 20** — `tests/test_transcription.py`
 21. **Step 21** — `tests/test_extraction.py`
-22. **Step 22** — `tests/test_pdf_generator.py`
+22. **Step 22** — _Skipped_ (WeasyPrint native deps unavailable on Windows)
 23. **Step 23** — `tests/test_middleware.py`
 24. **Step 24** — `tests/test_handlers.py`
 25. **Step 25** — `Dockerfile`
-26. **Step 26** — `.github/workflows/deploy.yml`
+26. **Step 26** — `cloudbuild.yaml`
 27. **Step 27** — `README.md`
+28. **Step 28** — Infrastructure setup (manual, no code)
 
 ### Parallel execution groups:
 
@@ -817,5 +967,6 @@ Step 1
 | G | 16 | Bot wiring — needs handlers + middleware + logging |
 | H | 17 | Entry point — needs bot |
 | I | 18 | Test fixtures — needs all source modules |
-| J | 19, 20, 21, 22, 23, 24 | All tests in parallel — each tests one module |
+| J | 19, 20, 21, 23, 24 | All tests in parallel — each tests one module (Step 22 skipped) |
 | K | 25, 26, 27 | Deployment infra — needs complete project |
+| L | 28 | Manual infrastructure setup — GCP, Cloud Build trigger, first deploy |

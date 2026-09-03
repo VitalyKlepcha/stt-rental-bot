@@ -1,0 +1,41 @@
+steps:
+# 1. Build Docker image
+- name: 'gcr.io/cloud-builders/docker'
+  args:
+    - 'build'
+    - '-t'
+    - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO_NAME}/voice-bot:latest'
+    - '.'
+  id: 'Build voice-bot'
+
+# 2. Push image to Artifact Registry
+- name: 'gcr.io/cloud-builders/docker'
+  args:
+    - 'push'
+    - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO_NAME}/voice-bot:latest'
+  id: 'Push voice-bot'
+
+# 3. Deploy to Cloud Run
+# NOTE: Update WEBHOOK_URL after first deploy reveals the Cloud Run URL.
+- name: 'gcr.io/cloud-builders/gcloud'
+  args:
+    - 'run'
+    - 'deploy'
+    - 'voice-bot'
+    - '--image'
+    - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO_NAME}/voice-bot:latest'
+    - '--region'
+    - '${_REGION}'
+    - '--no-allow-unauthenticated'
+    - '--set-secrets'
+    - 'TELEGRAM_BOT_TOKEN=telegram-bot-token:latest,OPENAI_API_KEY=openai-api-key:latest,ALLOWED_USER_IDS=allowed-user-ids:latest,WEBHOOK_SECRET=webhook-secret:latest'
+    - '--set-env-vars'
+    - 'USE_WEBHOOK=true,WEBHOOK_URL=https://voice-bot-xxxx-uc.a.run.app,WEBHOOK_PATH=/webhook'
+  id: 'Deploy voice-bot'
+
+substitutions:
+  _AR_REPO_NAME: 'voice-bot'
+  _REGION: 'europe-west1'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

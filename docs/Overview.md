@@ -57,7 +57,7 @@ Google Cloud:
   - Secret Manager (API keys, bot token)
 
 CI/CD:
-  - GitHub Actions → Workload Identity Federation → Cloud Run
+  - Google Cloud Build → Artifact Registry → Cloud Run
 ```
 
 ## Project Structure
@@ -71,9 +71,7 @@ stt-demo/
 ├── .env.example                   # Template for local development env vars
 ├── .gitignore                     # Python + IDE + env files
 │
-├── .github/
-│   └── workflows/
-│       └── deploy.yml             # CI/CD: lint → test → build → push to Artifact Registry → deploy to Cloud Run
+├── cloudbuild.yaml               # CI/CD: build → push to Artifact Registry → deploy to Cloud Run
 │
 ├── docs/
 │   ├── Overview.md                # This file — architecture, structure, reference
@@ -332,64 +330,49 @@ EXPOSE 8080
 CMD ["python", "-m", "voice_bot"]
 ```
 
-## GitHub Actions CI/CD Pipeline
+## Google Cloud Build Pipeline
 
 ```yaml
-# .github/workflows/deploy.yml
-name: deploy
+# cloudbuild.yaml
+steps:
+# 1. Build Docker image
+- name: 'gcr.io/cloud-builders/docker'
+  args:
+    - 'build'
+    - '-t'
+    - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO_NAME}/voice-bot:latest'
+    - '.'
+  id: 'Build voice-bot'
 
-on:
-  push:
-    branches: [main]
+# 2. Push image to Artifact Registry
+- name: 'gcr.io/cloud-builders/docker'
+  args:
+    - 'push'
+    - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO_NAME}/voice-bot:latest'
+  id: 'Push voice-bot'
 
-permissions:
-  contents: read
-  id-token: write  # Required for Workload Identity Federation
+# 3. Deploy to Cloud Run
+# NOTE: Update WEBHOOK_URL after first deploy reveals the Cloud Run URL.
+- name: 'gcr.io/cloud-builders/gcloud'
+  args:
+    - 'run'
+    - 'deploy'
+    - 'voice-bot'
+    - '--image'
+    - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO_NAME}/voice-bot:latest'
+    - '--region'
+    - '${_REGION}'
+    - '--no-allow-unauthenticated'
+    - '--set-secrets'
+    - 'TELEGRAM_BOT_TOKEN=telegram-bot-token:latest,OPENAI_API_KEY=openai-api-key:latest,ALLOWED_USER_IDS=allowed-user-ids:latest,WEBHOOK_SECRET=webhook-secret:latest'
+    - '--set-env-vars'
+    - 'USE_WEBHOOK=true,WEBHOOK_URL=https://voice-bot-xxxx-uc.a.run.app,WEBHOOK_PATH=/webhook'
+  id: 'Deploy voice-bot'
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install -e ".[dev]"
-      - run: ruff check .
-      - run: ruff format --check .
-      - run: mypy src/
-      - run: pytest --cov=src/
+substitutions:
+  _AR_REPO_NAME: 'voice-bot'
+  _REGION: 'europe-west1'
 
-  deploy:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - id: auth
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
-          service_account: ${{ vars.DEPLOY_SA }}
-      - uses: google-github-actions/setup-gcloud@v2
-      - name: Configure Docker
-        run: gcloud auth configure-docker ${{ vars.REGION }}-docker.pkg.dev
-      - name: Build and push
-        run: |
-          docker build -t ${{ vars.REGION }}-docker.pkg.dev/${{ vars.PROJECT_ID }}/voice-bot:${{ github.sha }} .
-          docker push ${{ vars.REGION }}-docker.pkg.dev/${{ vars.PROJECT_ID }}/voice-bot:${{ github.sha }}
-      - name: Deploy to Cloud Run
-        uses: google-github-actions/deploy-cloudrun@v2
-        with:
-          service: voice-bot
-          image: ${{ vars.REGION }}-docker.pkg.dev/${{ vars.PROJECT_ID }}/voice-bot:${{ github.sha }}
-          region: ${{ vars.REGION }}
-          flags: >-
-            --set-secrets=TELEGRAM_BOT_TOKEN=telegram-bot-token:latest
-            --set-secrets=OPENAI_API_KEY=openai-api-key:latest
-            --set-secrets=ALLOWED_USER_IDS=allowed-user-ids:latest
-            --set-secrets=WEBHOOK_SECRET=webhook-secret:latest
-            --set-env-vars=USE_WEBHOOK=true
-            --set-env-vars=WEBHOOK_URL=https://voice-bot-xxxx-uc.a.run.app
-            --set-env-vars=WEBHOOK_PATH=/webhook
-            --no-allow-unauthenticated
+options:
+  logging: CLOUD_LOGGING_ONLY
 ```
