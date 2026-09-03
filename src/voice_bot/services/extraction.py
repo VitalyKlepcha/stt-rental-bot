@@ -7,6 +7,7 @@ Pydantic ``response_format`` so the model returns a validated
 
 from __future__ import annotations
 
+from datetime import date
 from typing import TYPE_CHECKING
 
 import openai
@@ -15,7 +16,7 @@ import structlog
 from voice_bot.config import settings
 from voice_bot.exceptions import ExtractionError
 from voice_bot.models import RentalRequestData
-from voice_bot.prompts import SYSTEM_PROMPT
+from voice_bot.prompts import SYSTEM_PROMPT_TEMPLATE
 
 if TYPE_CHECKING:
     from openai import AsyncOpenAI
@@ -84,8 +85,12 @@ class ExtractionService:
             transcript_preview=preview,
         )
 
+        system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
+            today=date.today().isoformat(),
+        )
+
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": transcript},
         ]
 

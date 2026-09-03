@@ -5,6 +5,7 @@ All OpenAI API calls are mocked — no real network requests are made.
 
 from __future__ import annotations
 
+from datetime import date
 from unittest.mock import AsyncMock, MagicMock
 
 import openai
@@ -12,7 +13,7 @@ import pytest
 
 from voice_bot.exceptions import ExtractionError
 from voice_bot.models import RentalRequestData
-from voice_bot.prompts import SYSTEM_PROMPT
+from voice_bot.prompts import SYSTEM_PROMPT_TEMPLATE
 from voice_bot.services.extraction import ExtractionService
 
 
@@ -187,7 +188,7 @@ async def test_extract_passes_system_prompt(
     sample_rental_data: RentalRequestData,
     sample_transcript: str,
 ) -> None:
-    """The SYSTEM_PROMPT is sent as the first system-role message."""
+    """The SYSTEM_PROMPT_TEMPLATE is sent as the first system-role message."""
     _set_parsed(mock_openai_client, sample_rental_data)
     service = _make_service(mock_openai_client)
 
@@ -196,7 +197,9 @@ async def test_extract_passes_system_prompt(
     call_kwargs = mock_openai_client.chat.completions.parse.call_args.kwargs
     messages = call_kwargs["messages"]
     assert messages[0]["role"] == "system"
-    assert messages[0]["content"] == SYSTEM_PROMPT
+    assert messages[0]["content"] == SYSTEM_PROMPT_TEMPLATE.format(
+        today=date.today().isoformat(),
+    )
 
 
 async def test_extract_passes_user_transcript(

@@ -7,9 +7,16 @@ Russian speech about construction equipment rental.
 
 from __future__ import annotations
 
-SYSTEM_PROMPT = """\
+from datetime import date
+
+SYSTEM_PROMPT_TEMPLATE = """\
 Ты — ассистент, который извлекает структурированные данные из голосовых сообщений \
 клиентов компании по аренде строительной техники.
+
+# Текущая дата
+
+Сегодня: {today} (в формате ISO ГГГГ-ММ-ДД). Используй эту дату для преобразования \
+относительных дат («завтра», «послезавтра», «в следующий понедельник») в формат ISO.
 
 # Задача
 
@@ -28,8 +35,8 @@ SYSTEM_PROMPT = """\
    - **quantity** — количество единиц. Если не названо, используй 1.
 4. **rental_start_date** — дата начала аренды в формате ISO (ГГГГ-ММ-ДД), если удалось \
 определить. Если клиент назвал дату словами («пятнадцатого мая»), преобразуй в ISO. \
-Если дата относительная («послезавтра», «в следующий понедельник») и текущая дата \
-неизвестна, оставь как произнёс клиент.
+Если дата относительная («послезавтра», «в следующий понедельник»), преобразуй \
+в ISO, используя текущую дату, указанную выше.
 5. **rental_end_date** — дата окончания аренды в формате ISO (ГГГГ-ММ-ДД). \
 Те же правила, что для даты начала.
 6. **rental_duration_days** — длительность аренды в днях, если клиент назвал её \
@@ -71,12 +78,12 @@ SYSTEM_PROMPT = """\
 на экскаватор.»
 
 Вывод:
-{
+{{
   "client_name": "Иванов Сергей",
   "contact_phone": "+79003123456",
   "equipment": [
-    {"name": "Экскаватор JCB 3CX", "quantity": 1},
-    {"name": "Самосвал КамАЗ", "quantity": 2}
+    {{"name": "Экскаватор JCB 3CX", "quantity": 1}},
+    {{"name": "Самосвал КамАЗ", "quantity": 2}}
   ],
   "rental_start_date": "2024-05-20",
   "rental_end_date": null,
@@ -85,7 +92,7 @@ SYSTEM_PROMPT = """\
   "preferred_delivery_time": "утром",
   "special_requirements": "Нужен оператор на экскаватор",
   "urgency": "normal"
-}
+}}
 
 ## Пример 2
 
@@ -95,11 +102,11 @@ SYSTEM_PROMPT = """\
 четыреста пятьдесят пять двести тридцать восемь сорок один. Оплата по безналу.»
 
 Вывод:
-{
+{{
   "client_name": "СтройМонтаж (Пётр)",
   "contact_phone": "+7455523041",
   "equipment": [
-    {"name": "Башенный кран Liebherr", "quantity": 1}
+    {{"name": "Башенный кран Liebherr", "quantity": 1}}
   ],
   "rental_start_date": null,
   "rental_end_date": null,
@@ -108,7 +115,7 @@ SYSTEM_PROMPT = """\
   "preferred_delivery_time": null,
   "special_requirements": "Оплата по безналичному расчёту",
   "urgency": "urgent"
-}
+}}
 
 ## Пример 3
 
@@ -116,7 +123,7 @@ SYSTEM_PROMPT = """\
 «Привет, а погода завтра какая будет?»
 
 Вывод:
-{
+{{
   "client_name": null,
   "contact_phone": null,
   "equipment": [],
@@ -127,5 +134,5 @@ SYSTEM_PROMPT = """\
   "preferred_delivery_time": null,
   "special_requirements": null,
   "urgency": "normal"
-}
+}}
 """
