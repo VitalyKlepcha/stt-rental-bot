@@ -26,7 +26,7 @@ steps:
     - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO_NAME}/voice-bot:latest'
     - '--region'
     - '${_REGION}'
-    - '--no-allow-unauthenticated'
+    - '--allow-unauthenticated'
     - '--set-secrets'
     - 'TELEGRAM_BOT_TOKEN=stt_telegram-bot-token:latest,OPENAI_API_KEY=stt_openai-api-key:latest,ALLOWED_USER_IDS=stt_allowed-user-ids:latest,WEBHOOK_SECRET=stt_webhook-secret:latest'
     - '--set-env-vars'
