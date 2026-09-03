@@ -28,14 +28,14 @@ steps:
     - '${_REGION}'
     - '--no-allow-unauthenticated'
     - '--set-secrets'
-    - 'TELEGRAM_BOT_TOKEN=telegram-bot-token:latest,OPENAI_API_KEY=openai-api-key:latest,ALLOWED_USER_IDS=allowed-user-ids:latest,WEBHOOK_SECRET=webhook-secret:latest'
+    - 'TELEGRAM_BOT_TOKEN=stt_telegram-bot-token:latest,OPENAI_API_KEY=stt_openai-api-key:latest,ALLOWED_USER_IDS=stt_allowed-user-ids:latest,WEBHOOK_SECRET=stt_webhook-secret:latest'
     - '--set-env-vars'
     - 'USE_WEBHOOK=true,WEBHOOK_URL=https://voice-bot-xxxx-uc.a.run.app,WEBHOOK_PATH=/webhook'
   id: 'Deploy voice-bot'
 
 substitutions:
   _AR_REPO_NAME: 'voice-bot'
-  _REGION: 'europe-west1'
+  _REGION: 'europe-west3'
 
 options:
   logging: CLOUD_LOGGING_ONLY

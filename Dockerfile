@@ -15,7 +15,7 @@ FROM python:3.12-slim AS runtime
 
 LABEL org.opencontainers.image.title="voice-bot" \
       org.opencontainers.image.description="Telegram voice-to-PDF bot for construction equipment rental" \
-      org.opencontainers.image.source="https://github.com/user/stt-demo"
+      org.opencontainers.image.source="https://github.com/VitalyKlepcha/stt-rental-bot"
 
 # WeasyPrint system dependencies + Cyrillic-capable fonts
 RUN apt-get update && apt-get install -y --no-install-recommends \
