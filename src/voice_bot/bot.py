@@ -142,6 +142,7 @@ async def run_webhook(bot: Bot, dp: Dispatcher) -> None:
         dispatcher=dp,
         bot=bot,
         secret_token=settings.webhook_secret,
+        handle_in_background=False,
     ).register(app, path=settings.webhook_path)
 
     async def _healthz(_request: web.Request) -> web.Response:
