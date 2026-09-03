@@ -74,18 +74,17 @@ def create_bot() -> Bot:
     return bot
 
 
-def create_dispatcher(bot: Bot, services: Services) -> Dispatcher:
+def create_dispatcher(services: Services) -> Dispatcher:
     """Create a Dispatcher with middleware, router, and services wired in.
 
     Parameters:
-        bot: The Bot instance to associate with the dispatcher.
         services: Container of service instances to inject into handlers
             via ``workflow_data``.
 
     Returns:
         A configured Dispatcher ready for polling or webhook mode.
     """
-    dp = Dispatcher(bot)
+    dp = Dispatcher()
 
     dp.message.middleware(
         AccessControlMiddleware(allowed_user_ids=settings.allowed_user_ids),

@@ -34,7 +34,7 @@ def main() -> None:
 
     bot = create_bot()
     services: Services = create_services()
-    dp = create_dispatcher(bot, services)
+    dp = create_dispatcher(services)
 
     try:
         if settings.use_webhook:
