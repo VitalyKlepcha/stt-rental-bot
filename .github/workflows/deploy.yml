@@ -1,0 +1,83 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # Required for Workload Identity Federation
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ${{ vars.REGION }}-docker.pkg.dev/${{ vars.PROJECT_ID }}/voice-bot
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: Ruff format check
+        run: ruff format --check .
+
+      - name: Mypy type check
+        run: mypy src/
+
+      - name: Pytest with coverage
+        run: pytest --cov=src/ --cov-report=term-missing
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ vars.REGION }}-docker.pkg.dev
+
+      - name: Build and push image
+        run: |
+          docker build -t ${{ env.IMAGE }}:${{ github.sha }} .
+          docker push ${{ env.IMAGE }}:${{ github.sha }}
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: voice-bot
+          image: ${{ env.IMAGE }}:${{ github.sha }}
+          region: ${{ vars.REGION }}
+          flags: >-
+            --set-secrets=TELEGRAM_BOT_TOKEN=telegram-bot-token:latest
+            --set-secrets=OPENAI_API_KEY=openai-api-key:latest
+            --set-secrets=ALLOWED_USER_IDS=allowed-user-ids:latest
+            --set-secrets=WEBHOOK_SECRET=webhook-secret:latest
+            --set-env-vars=USE_WEBHOOK=true
+            --set-env-vars=WEBHOOK_URL=${{ vars.WEBHOOK_URL }}
+            --set-env-vars=WEBHOOK_PATH=/webhook
+            --no-allow-unauthenticated

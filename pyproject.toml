@@ -36,6 +36,9 @@ voice-bot = "voice_bot.__main__:main"
 package-dir = {"" = "src"}
 packages = ["voice_bot"]
 
+[tool.setuptools.package-data]
+voice_bot = ["templates/*.html", "static/*.css"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"
