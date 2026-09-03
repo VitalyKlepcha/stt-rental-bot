@@ -136,11 +136,6 @@ async def run_webhook(bot: Bot, dp: Dispatcher) -> None:
     webhook_url = f"{settings.webhook_url}{settings.webhook_path}"
     logger.info("starting_webhook", webhook_url=webhook_url)
 
-    await bot.set_webhook(
-        url=webhook_url,
-        secret_token=settings.webhook_secret,
-    )
-
     app = web.Application()
 
     SimpleRequestHandler(
@@ -163,6 +158,20 @@ async def run_webhook(bot: Bot, dp: Dispatcher) -> None:
     await site.start()
 
     logger.info("webhook_server_started", port=settings.port)
+
+    try:
+        await bot.set_webhook(
+            url=webhook_url,
+            secret_token=settings.webhook_secret,
+        )
+        logger.info("webhook_registered", webhook_url=webhook_url)
+    except Exception as exc:
+        logger.error(
+            "webhook_registration_failed",
+            error=str(exc),
+            error_type=type(exc).__name__,
+            webhook_url=webhook_url,
+        )
 
     stop_event = asyncio.Event()
 
