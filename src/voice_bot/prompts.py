@@ -33,15 +33,18 @@ SYSTEM_PROMPT_TEMPLATE = """\
    - **name** — наименование техники. Включай марку и модель, если они упомянуты \
 (например, «Экскаватор JCB 3CX», а не просто «экскаватор»).
    - **quantity** — количество единиц. Если не названо, используй 1.
-4. **rental_start_date** — дата начала аренды в формате ISO (ГГГГ-ММ-ДД), если удалось \
-определить. Если клиент назвал дату словами («пятнадцатого мая»), преобразуй в ISO. \
-Если дата относительная («послезавтра», «в следующий понедельник»), преобразуй \
-в ISO, используя текущую дату, указанную выше.
-5. **rental_end_date** — дата окончания аренды в формате ISO (ГГГГ-ММ-ДД). \
-Те же правила, что для даты начала.
-6. **rental_duration_days** — длительность аренды в днях, если клиент назвал её \
-прямо («на неделю», «на два дня»). Преобразуй словесные обозначения в число дней \
-(неделя = 7, месяц = 30). Если указаны и даты, и длительность — заполняй все поля.
+   - **rental_start_date** — дата начала аренды этой позиции в формате ISO (ГГГГ-ММ-ДД). \
+Если для всех позиций срок одинаковый, заполни для каждой. \
+Относительные даты преобразуй, используя текущую дату выше.
+   - **rental_end_date** — дата окончания аренды этой позиции в формате ISO. \
+Если известны start_date и duration_days, вычисли end_date = start_date + duration_days.
+   - **rental_duration_days** — длительность аренды этой позиции в днях \
+(неделя = 7, месяц = 30). Если известны start_date и end_date, вычисли duration.
+4. **rental_start_date** — общая дата начала аренды (если одинакова для всех позиций). \
+В формате ISO. Если у позиций разные сроки — оставь null.
+5. **rental_end_date** — общая дата окончания аренды (если одинакова для всех позиций). \
+Если известны start_date и duration_days, вычисли end_date.
+6. **rental_duration_days** — общая длительность аренды в днях (если одинакова для всех).
 7. **delivery_address** — адрес доставки оборудования.
 8. **preferred_delivery_time** — предпочтительное время доставки \
 (например, «утром», «до 10 утра», «в рабочее время»).
@@ -60,6 +63,16 @@ SYSTEM_PROMPT_TEMPLATE = """\
 Каждый упомянутый вид техники — отдельный элемент в списке equipment.
 - Если клиент назвал количество для конкретной техники, \
 указывай quantity для соответствующего элемента.
+- Если разные позиции имеют разные сроки аренды, заполни \
+rental_start_date, rental_end_date и rental_duration_days для каждой позиции \
+в списке equipment, а общие поля rental_start_date, rental_end_date, \
+rental_duration_days оставь null.
+- Если все позиции имеют одинаковый срок аренды, заполни \
+поля в equipment для каждой позиции И общие поля rental_start_date, \
+rental_end_date, rental_duration_days на уровне заявки.
+- Всегда вычисляй rental_end_date из rental_start_date + rental_duration_days, \
+если известны оба. И наоборот, вычисляй rental_duration_days из дат, \
+если известны обе даты.
 - Текст может содержать ошибки распознавания речи. \
 Старайся исправлять очевидные опечатки в именах и названиях техники \
 по контексту, но не выдумывай информацию, которой нет в тексте.
@@ -82,11 +95,11 @@ SYSTEM_PROMPT_TEMPLATE = """\
   "client_name": "Иванов Сергей",
   "contact_phone": "+79003123456",
   "equipment": [
-    {{"name": "Экскаватор JCB 3CX", "quantity": 1}},
-    {{"name": "Самосвал КамАЗ", "quantity": 2}}
+    {{"name": "Экскаватор JCB 3CX", "quantity": 1, "rental_start_date": "2024-05-20", "rental_end_date": "2024-05-27", "rental_duration_days": 7}},
+    {{"name": "Самосвал КамАЗ", "quantity": 2, "rental_start_date": "2024-05-20", "rental_end_date": "2024-05-27", "rental_duration_days": 7}}
   ],
   "rental_start_date": "2024-05-20",
-  "rental_end_date": null,
+  "rental_end_date": "2024-05-27",
   "rental_duration_days": 7,
   "delivery_address": "ул. Ленина, 15, Калуга",
   "preferred_delivery_time": "утром",
@@ -101,15 +114,15 @@ SYSTEM_PROMPT_TEMPLATE = """\
 на месяц, начиная завтра. Адрес: Москва, проспект Мира, дом 102. Телефон плюс семь \
 четыреста пятьдесят пять двести тридцать восемь сорок один. Оплата по безналу.»
 
-Вывод:
+Вывод (предположим, сегодня 2025-03-20):
 {{
   "client_name": "СтройМонтаж (Пётр)",
   "contact_phone": "+7455523041",
   "equipment": [
-    {{"name": "Башенный кран Liebherr", "quantity": 1}}
+    {{"name": "Башенный кран Liebherr", "quantity": 1, "rental_start_date": "2025-03-21", "rental_end_date": "2025-04-20", "rental_duration_days": 30}}
   ],
-  "rental_start_date": null,
-  "rental_end_date": null,
+  "rental_start_date": "2025-03-21",
+  "rental_end_date": "2025-04-20",
   "rental_duration_days": 30,
   "delivery_address": "просп. Мира, 102, Москва",
   "preferred_delivery_time": null,
@@ -134,5 +147,29 @@ SYSTEM_PROMPT_TEMPLATE = """\
   "preferred_delivery_time": null,
   "special_requirements": null,
   "urgency": "normal"
+}}
+
+## Пример 4 — разные сроки для разных позиций
+
+Ввод:
+«Звонил клиент, компания СтройДевелоп. Нужно два экскаватора: JCB 3CX на пять дней \
+с завтрашнего дня и Hitachi ZX200 на две недели. Телефон плюс семь девятьсот \
+двести тридцать четыре пятьдесят шесть семьдесят восемь. Это срочно.»
+
+Вывод (предположим, сегодня 2025-09-03):
+{{
+  "client_name": "СтройДевелоп",
+  "contact_phone": "+79202345678",
+  "equipment": [
+    {{"name": "Экскаватор JCB 3CX", "quantity": 1, "rental_start_date": "2025-09-04", "rental_end_date": "2025-09-09", "rental_duration_days": 5}},
+    {{"name": "Экскаватор Hitachi ZX200", "quantity": 1, "rental_start_date": "2025-09-04", "rental_end_date": "2025-09-18", "rental_duration_days": 14}}
+  ],
+  "rental_start_date": null,
+  "rental_end_date": null,
+  "rental_duration_days": null,
+  "delivery_address": null,
+  "preferred_delivery_time": null,
+  "special_requirements": null,
+  "urgency": "urgent"
 }}
 """

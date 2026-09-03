@@ -131,7 +131,18 @@ table.equipment-table tr {
 }
 
 .col-quantity {
-    width: 80pt;
+    width: 60pt;
+    text-align: center;
+}
+
+.col-date {
+    width: 70pt;
+    text-align: center;
+    font-size: 10pt;
+}
+
+.col-days {
+    width: 50pt;
     text-align: center;
 }
 

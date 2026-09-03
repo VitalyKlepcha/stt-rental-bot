@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class EquipmentItem(BaseModel):
-    """A single piece of rental equipment with an optional quantity."""
+    """A single piece of rental equipment with quantity and per-item rental dates."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -25,6 +25,21 @@ class EquipmentItem(BaseModel):
         default=1,
         ge=1,
         description="Количество единиц оборудования (минимум 1)",
+    )
+    rental_start_date: str | None = Field(
+        default=None,
+        description="Дата начала аренды этой позиции в формате ISO (ГГГГ-ММ-ДД). "
+        "Если для всех позиций срок одинаковый, заполни для каждой.",
+    )
+    rental_end_date: str | None = Field(
+        default=None,
+        description="Дата окончания аренды этой позиции в формате ISO (ГГГГ-ММ-ДД). "
+        "Вычисли как start_date + duration_days, если известны оба.",
+    )
+    rental_duration_days: int | None = Field(
+        default=None,
+        ge=1,
+        description="Длительность аренды этой позиции в днях",
     )
 
 

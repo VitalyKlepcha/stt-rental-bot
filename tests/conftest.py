@@ -57,8 +57,20 @@ def sample_rental_data() -> RentalRequestData:
         client_name="ООО СтройМонтаж",
         contact_phone="+79001234567",
         equipment=[
-            EquipmentItem(name="Экскаватор JCB 3CX", quantity=2),
-            EquipmentItem(name="Самосвал КамАЗ 6520", quantity=1),
+            EquipmentItem(
+                name="Экскаватор JCB 3CX",
+                quantity=2,
+                rental_start_date="2025-09-10",
+                rental_end_date="2025-09-17",
+                rental_duration_days=7,
+            ),
+            EquipmentItem(
+                name="Самосвал КамАЗ 6520",
+                quantity=1,
+                rental_start_date="2025-09-10",
+                rental_end_date="2025-09-17",
+                rental_duration_days=7,
+            ),
         ],
         rental_start_date="2025-09-10",
         rental_end_date="2025-09-17",

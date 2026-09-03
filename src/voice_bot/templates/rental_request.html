@@ -36,6 +36,9 @@
                     <th class="col-number">№</th>
                     <th class="col-name">Наименование</th>
                     <th class="col-quantity">Количество</th>
+                    <th class="col-date">Дата начала</th>
+                    <th class="col-date">Дата окончания</th>
+                    <th class="col-days">Срок (дней)</th>
                 </tr>
             </thead>
             <tbody>
@@ -44,6 +47,9 @@
                     <td class="col-number">{{ loop.index }}</td>
                     <td class="col-name">{{ item.name }}</td>
                     <td class="col-quantity">{{ item.quantity }}</td>
+                    <td class="col-date">{{ item.rental_start_date or "—" }}</td>
+                    <td class="col-date">{{ item.rental_end_date or "—" }}</td>
+                    <td class="col-days">{{ item.rental_duration_days or "—" }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -57,18 +63,24 @@
 
     <section class="form-section">
         <h2 class="section-title">3. Условия аренды</h2>
+        {% if data.rental_start_date or data.rental_end_date or data.rental_duration_days %}
         <div class="field-row">
-            <span class="field-label">Дата начала:</span>
+            <span class="field-label">Дата начала (общая):</span>
             <span class="field-value">{{ data.rental_start_date or "—" }}</span>
         </div>
         <div class="field-row">
-            <span class="field-label">Дата окончания:</span>
+            <span class="field-label">Дата окончания (общая):</span>
             <span class="field-value">{{ data.rental_end_date or "—" }}</span>
         </div>
         <div class="field-row">
-            <span class="field-label">Срок аренды (дней):</span>
+            <span class="field-label">Срок аренды (дней, общий):</span>
             <span class="field-value">{{ data.rental_duration_days or "—" }}</span>
         </div>
+        {% else %}
+        <div class="field-row">
+            <span class="field-value">Сроки аренды указаны для каждой позиции отдельно в таблице выше.</span>
+        </div>
+        {% endif %}
     </section>
 
     <section class="form-section">
