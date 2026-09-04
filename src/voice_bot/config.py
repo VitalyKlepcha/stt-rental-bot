@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     use_webhook: bool = False
     log_level: str = "INFO"
     port: int = 8080
+    support_email: str = "hello@zpoint.app"
 
     @field_validator("allowed_user_ids", mode="before")
     @classmethod

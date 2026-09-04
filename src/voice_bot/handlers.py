@@ -23,6 +23,7 @@ from aiogram.exceptions import TelegramAPIError, TelegramNetworkError
 from aiogram.filters import Command, CommandStart
 from aiogram.types import BufferedInputFile, Message
 
+from voice_bot.config import settings
 from voice_bot.exceptions import (
     ExtractionError,
     PDFGenerationError,
@@ -31,6 +32,7 @@ from voice_bot.exceptions import (
 from voice_bot.services.extraction import ExtractionService
 from voice_bot.services.pdf_generator import PDFGeneratorService
 from voice_bot.services.transcription import TranscriptionService
+from voice_bot.services.usage_limit import UsageLimitService
 
 logger = structlog.get_logger(__name__)
 
@@ -73,6 +75,16 @@ _HELP_TEXT = (
     "3. Бот обработает сообщение и отправит вам PDF-документ с заявкой.\n\n"
     "Пример: «Мне нужен экскаватор JCB 3CX на три дня, начиная с пятницы. "
     "Доставьте на стройку на Ленина 15. Мой телефон плюс семь девятьсот…»"
+)
+
+_USER_LIMIT_REACHED_TEXT = (
+    f"Вы достигли лимита запросов (50 голосовых сообщений). "
+    f"Чтобы увеличить лимит, напишите на {settings.support_email}"
+)
+# TODO: Implement notification to admin — send email to {settings.support_email} or Telegram message to a configured admin user ID when global limit is reached.
+_GLOBAL_LIMIT_REACHED_TEXT = (
+    f"Бот временно недоступен — общий лимит запросов исчерпан. "
+    f"Напишите на {settings.support_email}, чтобы узнать о возобновлении работы."
 )
 
 _PDF_FILENAME = "zayavka_na_arendu.pdf"
@@ -119,6 +131,7 @@ async def handle_voice_message(
     transcription_service: TranscriptionService,
     extraction_service: ExtractionService,
     pdf_generator: PDFGeneratorService,
+    usage_limit_service: UsageLimitService,
 ) -> None:
     """Process a voice message through the full pipeline.
 
@@ -151,6 +164,17 @@ async def handle_voice_message(
     progress_task = asyncio.create_task(
         _update_progress(status_msg, _PROGRESS_INTERVAL_SEC),
     )
+
+    # --- Step 0: Check usage limits -------------------------------------------
+    user_id_for_limit = message.from_user.id if message.from_user else 0
+    usage_result = await usage_limit_service.check_and_increment(user_id_for_limit)
+    if not usage_result.allowed:
+        if usage_result.reason == "user_limit_reached":
+            await message.answer(_USER_LIMIT_REACHED_TEXT)
+        else:
+            await message.answer(_GLOBAL_LIMIT_REACHED_TEXT)
+        progress_task.cancel()
+        return
 
     # --- Step 1: Download voice file ------------------------------------------
     try:

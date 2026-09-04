@@ -221,6 +221,22 @@ def mock_extraction_service(sample_rental_data: RentalRequestData) -> AsyncMock:
     return service
 
 
+@pytest.fixture
+def mock_usage_limit_service() -> AsyncMock:
+    """Return an AsyncMock simulating UsageLimitService.
+
+    By default, ``check_and_increment`` returns UsageCheckResult(allowed=True, reason="ok").
+    """
+    from voice_bot.services.usage_limit import UsageCheckResult
+
+    service = AsyncMock()
+    service.check_and_increment = AsyncMock(
+        return_value=UsageCheckResult(allowed=True, reason="ok"),
+    )
+    service.close = AsyncMock()
+    return service
+
+
 # --- Real PDF generator --------------------------------------------------------
 
 

@@ -24,13 +24,14 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 
 from voice_bot.config import settings
 from voice_bot.handlers import router
-from voice_bot.middleware import AccessControlMiddleware
+from voice_bot.middleware import AccessControlMiddleware  # noqa: F401
 from voice_bot.services.extraction import ExtractionService, create_extraction_service
 from voice_bot.services.pdf_generator import PDFGeneratorService, create_pdf_generator
 from voice_bot.services.transcription import (
     TranscriptionService,
     create_transcription_service,
 )
+from voice_bot.services.usage_limit import UsageLimitService, create_usage_limit_service
 
 logger = structlog.get_logger(__name__)
 
@@ -46,6 +47,7 @@ class Services:
     transcription_service: TranscriptionService
     extraction_service: ExtractionService
     pdf_generator: PDFGeneratorService
+    usage_limit_service: UsageLimitService
 
 
 def create_services() -> Services:
@@ -54,6 +56,7 @@ def create_services() -> Services:
         transcription_service=create_transcription_service(),
         extraction_service=create_extraction_service(),
         pdf_generator=create_pdf_generator(),
+        usage_limit_service=create_usage_limit_service(),
     )
 
 
@@ -61,6 +64,7 @@ async def _close_services(services: Services) -> None:
     """Close async service clients and release resources."""
     await services.transcription_service.close()
     await services.extraction_service.close()
+    await services.usage_limit_service.close()
     logger.info("services_closed")
 
 
@@ -86,12 +90,12 @@ def create_dispatcher(services: Services) -> Dispatcher:
     """
     dp = Dispatcher()
 
-    dp.message.middleware(
-        AccessControlMiddleware(allowed_user_ids=settings.allowed_user_ids),
-    )
-    dp.callback_query.middleware(
-        AccessControlMiddleware(allowed_user_ids=settings.allowed_user_ids),
-    )
+    # dp.message.middleware(
+    #     AccessControlMiddleware(allowed_user_ids=settings.allowed_user_ids),
+    # )
+    # dp.callback_query.middleware(
+    #     AccessControlMiddleware(allowed_user_ids=settings.allowed_user_ids),
+    # )
 
     dp.include_router(router)
 
@@ -99,6 +103,7 @@ def create_dispatcher(services: Services) -> Dispatcher:
         transcription_service=services.transcription_service,
         extraction_service=services.extraction_service,
         pdf_generator=services.pdf_generator,
+        usage_limit_service=services.usage_limit_service,
     )
 
     @dp.shutdown()

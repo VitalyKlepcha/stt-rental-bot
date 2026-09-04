@@ -24,11 +24,13 @@ from voice_bot.handlers import (
     _EMPTY_DATA_TEXT,
     _EMPTY_TRANSCRIPT_TEXT,
     _EXTRACTION_ERROR_TEXT,
+    _GLOBAL_LIMIT_REACHED_TEXT,
     _HELP_TEXT,
     _NON_VOICE_TEXT,
     _PDF_CAPTION,
     _PDF_ERROR_TEXT,
     _TRANSCRIPTION_ERROR_TEXT,
+    _USER_LIMIT_REACHED_TEXT,
     _VOICE_DOWNLOAD_ERROR_TEXT,
     _WELCOME_TEXT,
     handle_help,
@@ -103,6 +105,7 @@ async def test_handle_voice_full_flow(
     mock_transcription_service: AsyncMock,
     mock_extraction_service: AsyncMock,
     mock_pdf_generator: MagicMock,
+    mock_usage_limit_service: AsyncMock,
     sample_audio_bytes: bytes,
     sample_rental_data: RentalRequestData,
 ) -> None:
@@ -112,6 +115,7 @@ async def test_handle_voice_full_flow(
         mock_transcription_service,
         mock_extraction_service,
         mock_pdf_generator,
+        mock_usage_limit_service,
     )
 
     # Acknowledgment sent
@@ -146,6 +150,7 @@ async def test_handle_voice_transcription_error(
     mock_transcription_service: AsyncMock,
     mock_extraction_service: AsyncMock,
     mock_pdf_generator: MagicMock,
+    mock_usage_limit_service: AsyncMock,
 ) -> None:
     """Test that TranscriptionError sends error message and no PDF."""
     mock_transcription_service.transcribe.side_effect = TranscriptionError("API failed")
@@ -155,6 +160,7 @@ async def test_handle_voice_transcription_error(
         mock_transcription_service,
         mock_extraction_service,
         mock_pdf_generator,
+        mock_usage_limit_service,
     )
 
     configured_message.answer.assert_any_call(_TRANSCRIPTION_ERROR_TEXT)
@@ -171,6 +177,7 @@ async def test_handle_voice_extraction_error(
     mock_transcription_service: AsyncMock,
     mock_extraction_service: AsyncMock,
     mock_pdf_generator: MagicMock,
+    mock_usage_limit_service: AsyncMock,
 ) -> None:
     """Test that ExtractionError sends error message and no PDF."""
     mock_extraction_service.extract.side_effect = ExtractionError("API failed")
@@ -180,6 +187,7 @@ async def test_handle_voice_extraction_error(
         mock_transcription_service,
         mock_extraction_service,
         mock_pdf_generator,
+        mock_usage_limit_service,
     )
 
     configured_message.answer.assert_any_call(_EXTRACTION_ERROR_TEXT)
@@ -195,6 +203,7 @@ async def test_handle_voice_pdf_error(
     mock_transcription_service: AsyncMock,
     mock_extraction_service: AsyncMock,
     mock_pdf_generator: MagicMock,
+    mock_usage_limit_service: AsyncMock,
 ) -> None:
     """Test that PDFGenerationError sends error message and no PDF."""
     mock_pdf_generator.generate.side_effect = PDFGenerationError("WeasyPrint failed")
@@ -204,6 +213,7 @@ async def test_handle_voice_pdf_error(
         mock_transcription_service,
         mock_extraction_service,
         mock_pdf_generator,
+        mock_usage_limit_service,
     )
 
     configured_message.answer.assert_any_call(_PDF_ERROR_TEXT)
@@ -218,6 +228,7 @@ async def test_handle_voice_empty_transcript(
     mock_transcription_service: AsyncMock,
     mock_extraction_service: AsyncMock,
     mock_pdf_generator: MagicMock,
+    mock_usage_limit_service: AsyncMock,
 ) -> None:
     """Test that empty transcript sends 'Не удалось распознать речь' message."""
     mock_transcription_service.transcribe.return_value = ""
@@ -227,6 +238,7 @@ async def test_handle_voice_empty_transcript(
         mock_transcription_service,
         mock_extraction_service,
         mock_pdf_generator,
+        mock_usage_limit_service,
     )
 
     configured_message.answer.assert_any_call(_EMPTY_TRANSCRIPT_TEXT)
@@ -243,6 +255,7 @@ async def test_handle_voice_download_error(
     mock_transcription_service: AsyncMock,
     mock_extraction_service: AsyncMock,
     mock_pdf_generator: MagicMock,
+    mock_usage_limit_service: AsyncMock,
 ) -> None:
     """Test that download failure sends download error message and no PDF."""
     mock_message.bot.get_file.side_effect = RuntimeError("network error")
@@ -252,6 +265,7 @@ async def test_handle_voice_download_error(
         mock_transcription_service,
         mock_extraction_service,
         mock_pdf_generator,
+        mock_usage_limit_service,
     )
 
     mock_message.answer.assert_any_call(_VOICE_DOWNLOAD_ERROR_TEXT)
@@ -267,6 +281,7 @@ async def test_handle_voice_empty_extraction_result(
     mock_transcription_service: AsyncMock,
     mock_extraction_service: AsyncMock,
     mock_pdf_generator: MagicMock,
+    mock_usage_limit_service: AsyncMock,
     empty_rental_data: RentalRequestData,
 ) -> None:
     """Test that empty RentalRequestData sends 'Не удалось извлечь данные' message."""
@@ -277,8 +292,68 @@ async def test_handle_voice_empty_extraction_result(
         mock_transcription_service,
         mock_extraction_service,
         mock_pdf_generator,
+        mock_usage_limit_service,
     )
 
     configured_message.answer.assert_any_call(_EMPTY_DATA_TEXT)
     mock_pdf_generator.generate.assert_not_called()
     configured_message.answer_document.assert_not_called()
+
+
+# --- Usage limit reached ------------------------------------------------------
+
+
+async def test_handle_voice_user_limit_reached(
+    configured_message: MagicMock,
+    mock_transcription_service: AsyncMock,
+    mock_extraction_service: AsyncMock,
+    mock_pdf_generator: MagicMock,
+    mock_usage_limit_service: AsyncMock,
+) -> None:
+    """Test that user_limit_reached sends limit message and no PDF."""
+    from voice_bot.services.usage_limit import UsageCheckResult
+
+    mock_usage_limit_service.check_and_increment.return_value = UsageCheckResult(
+        allowed=False,
+        reason="user_limit_reached",
+    )
+
+    await handle_voice_message(
+        configured_message,
+        mock_transcription_service,
+        mock_extraction_service,
+        mock_pdf_generator,
+        mock_usage_limit_service,
+    )
+
+    configured_message.answer.assert_any_call(_USER_LIMIT_REACHED_TEXT)
+    configured_message.answer_document.assert_not_called()
+    mock_transcription_service.transcribe.assert_not_called()
+
+
+async def test_handle_voice_global_limit_reached(
+    configured_message: MagicMock,
+    mock_transcription_service: AsyncMock,
+    mock_extraction_service: AsyncMock,
+    mock_pdf_generator: MagicMock,
+    mock_usage_limit_service: AsyncMock,
+) -> None:
+    """Test that global_limit_reached sends limit message and no PDF."""
+    from voice_bot.services.usage_limit import UsageCheckResult
+
+    mock_usage_limit_service.check_and_increment.return_value = UsageCheckResult(
+        allowed=False,
+        reason="global_limit_reached",
+    )
+
+    await handle_voice_message(
+        configured_message,
+        mock_transcription_service,
+        mock_extraction_service,
+        mock_pdf_generator,
+        mock_usage_limit_service,
+    )
+
+    configured_message.answer.assert_any_call(_GLOBAL_LIMIT_REACHED_TEXT)
+    configured_message.answer_document.assert_not_called()
+    mock_transcription_service.transcribe.assert_not_called()

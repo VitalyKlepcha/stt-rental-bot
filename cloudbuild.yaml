@@ -34,7 +34,7 @@ steps:
     - '--set-secrets'
     - 'TELEGRAM_BOT_TOKEN=stt_telegram-bot-token:latest,OPENAI_API_KEY=stt_openai-api-key:latest,ALLOWED_USER_IDS=stt_allowed-user-ids:latest,WEBHOOK_SECRET=stt_webhook-secret:latest'
     - '--set-env-vars'
-    - 'USE_WEBHOOK=true,WEBHOOK_URL=https://voice-bot-824050610488.europe-west3.run.app,WEBHOOK_PATH=/webhook'
+    - 'USE_WEBHOOK=true,WEBHOOK_URL=https://voice-bot-824050610488.europe-west3.run.app,WEBHOOK_PATH=/webhook,SUPPORT_EMAIL=hello@zpoint.app'
   id: 'Deploy voice-bot'
 
 substitutions:

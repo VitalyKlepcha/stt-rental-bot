@@ -9,6 +9,7 @@ description = "Telegram bot for transcribing voice messages and generating PDF r
 requires-python = ">=3.12"
 dependencies = [
     "aiogram>=3.13,<4.0",
+    "google-cloud-firestore>=2.17.0",
     "openai>=1.50,<2.0",
     "weasyprint>=62.0",
     "jinja2>=3.1",
