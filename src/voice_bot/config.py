@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     port: int = 8080
     support_email: str = "hello@zpoint.app"
+    admin_user_id: int | None = None
 
     @field_validator("allowed_user_ids", mode="before")
     @classmethod

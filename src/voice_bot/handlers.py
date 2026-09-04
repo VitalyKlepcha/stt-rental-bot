@@ -81,7 +81,11 @@ _USER_LIMIT_REACHED_TEXT = (
     f"Вы достигли лимита запросов (50 голосовых сообщений). "
     f"Чтобы увеличить лимит, напишите на {settings.support_email}"
 )
-# TODO: Implement notification to admin — send email to {settings.support_email} or Telegram message to a configured admin user ID when global limit is reached.
+_ADMIN_GLOBAL_LIMIT_TEXT = (
+    "⚠️ Достигнут общий лимит запросов (5000). "
+    "Бот временно недоступен для пользователей."
+)
+
 _GLOBAL_LIMIT_REACHED_TEXT = (
     f"Бот временно недоступен — общий лимит запросов исчерпан. "
     f"Напишите на {settings.support_email}, чтобы узнать о возобновлении работы."
@@ -173,6 +177,17 @@ async def handle_voice_message(
             await message.answer(_USER_LIMIT_REACHED_TEXT)
         else:
             await message.answer(_GLOBAL_LIMIT_REACHED_TEXT)
+            if settings.admin_user_id is not None:
+                try:
+                    await message.bot.send_message(
+                        settings.admin_user_id,
+                        _ADMIN_GLOBAL_LIMIT_TEXT,
+                    )
+                except TelegramAPIError:
+                    logger.warning(
+                        "admin_notification_failed",
+                        admin_user_id=settings.admin_user_id,
+                    )
         progress_task.cancel()
         return
 

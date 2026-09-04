@@ -21,6 +21,7 @@ from voice_bot.exceptions import (
 )
 from voice_bot.handlers import (
     _ACK_TEXT,
+    _ADMIN_GLOBAL_LIMIT_TEXT,
     _EMPTY_DATA_TEXT,
     _EMPTY_TRANSCRIPT_TEXT,
     _EXTRACTION_ERROR_TEXT,
@@ -337,14 +338,16 @@ async def test_handle_voice_global_limit_reached(
     mock_extraction_service: AsyncMock,
     mock_pdf_generator: MagicMock,
     mock_usage_limit_service: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test that global_limit_reached sends limit message and no PDF."""
+    """Test that global_limit_reached sends limit message and admin notification."""
     from voice_bot.services.usage_limit import UsageCheckResult
 
     mock_usage_limit_service.check_and_increment.return_value = UsageCheckResult(
         allowed=False,
         reason="global_limit_reached",
     )
+    monkeypatch.setattr("voice_bot.handlers.settings.admin_user_id", 999999999)
 
     await handle_voice_message(
         configured_message,
@@ -355,5 +358,9 @@ async def test_handle_voice_global_limit_reached(
     )
 
     configured_message.answer.assert_any_call(_GLOBAL_LIMIT_REACHED_TEXT)
+    configured_message.bot.send_message.assert_called_once_with(
+        999999999,
+        _ADMIN_GLOBAL_LIMIT_TEXT,
+    )
     configured_message.answer_document.assert_not_called()
     mock_transcription_service.transcribe.assert_not_called()
